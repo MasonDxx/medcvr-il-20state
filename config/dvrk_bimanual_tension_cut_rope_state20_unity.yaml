@@ -1,0 +1,154 @@
+# State20 configuration for the Unity bimanual tension-cut-rope task.
+# Roles: PSM1 = RTS scissors/cutting; PSM2 = LND grasping/tensioning.
+
+topics:
+  psm1_eef:
+    name: "/PSM1/command_end_tip_tf"
+    type: "geometry_msgs/PoseStamped"
+    recorder:
+      file: "psm1_eef_position.txt"
+
+  psm1_jaw:
+    name: "/PSM1/jaw/measured_js"
+    type: "sensor_msgs/JointState"
+    recorder:
+      file: "psm1_jaw_state.txt"
+
+  psm2_eef:
+    name: "/PSM2/command_end_tip_tf"
+    type: "geometry_msgs/PoseStamped"
+    recorder:
+      file: "psm2_eef_position.txt"
+
+  psm2_jaw:
+    name: "/PSM2/jaw/measured_js"
+    type: "sensor_msgs/JointState"
+    recorder:
+      file: "psm2_jaw_state.txt"
+
+  cam0:
+    name: "/rgb_publisher/cam0/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam0"
+    inference:
+      observation_name: "observation.image.cam0"
+
+  cam1:
+    name: "/rgb_publisher/cam1/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam1"
+    inference:
+      observation_name: "observation.image.cam1"
+
+  cam2:
+    name: "/rgb_publisher/cam2/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam2"
+    inference:
+      observation_name: "observation.image.cam2"
+
+global_image_pre_processor:
+  rectangular_crop_hw: null
+  image_resize_hw: [240, 360]
+
+synchronizer:
+  slop_sec: 0.1
+
+recorder:
+  episode: 0
+  frequency: 20
+  data_writer:
+    saving_folder: "/home/medcvr/hongming/data/bimanual_tension_cut_rope_raw"
+    timestamp_file: "timestamp.txt"
+
+# observation.state uses absolute current state:
+# PSM1 xyz + rotation6d + jaw, followed by PSM2 xyz + rotation6d + jaw.
+# Actions remain per-frame deltas in the same PSM1-then-PSM2 order.
+data_conversion:
+  raw_dir: "/home/medcvr/hongming/data/bimanual_tension_cut_rope_raw"
+  out_dir: "/home/medcvr/hongming/data/bimanual_tension_cut_rope_three_camera_state20_lerobot"
+  image_type: mp4
+  state: xyz_6d_jaw
+  state_source_indices: [0, 1]
+  robot_env: Unity
+  repo_id: "masondx/bimanual_tension_cut_rope_three_camera_state20"
+  push: true
+  fps: 20
+  cameras: "0,1,2"
+  task: "PSM2 grasp and tension rope, then PSM1 cut rope"
+  action_sources:
+    - eef_file: "psm1_eef_position.txt"
+      jaw_file: "psm1_jaw_state.txt"
+      jaw: joint_state
+      action: xyz_6d
+      transform_matrix: null
+      absolute_xyz: false
+      absolute_quat: false
+      absolute_jaw: false
+      base_to_cam_rot: null
+
+    - eef_file: "psm2_eef_position.txt"
+      jaw_file: "psm2_jaw_state.txt"
+      jaw: joint_state
+      action: xyz_6d
+      transform_matrix: null
+      absolute_xyz: false
+      absolute_quat: false
+      absolute_jaw: false
+      base_to_cam_rot: null
+
+inference:
+  frequency_hz: 20
+  policy_inferences:
+    main:
+      device: "cuda"
+      observation_state_size: 20
+      zero_observation_state: false
+      observation_state_mode: xyz_6d_jaw
+      observation_state_sources:
+        - pose_topic_key: psm1_eef
+          jaw_topic_key: psm1_jaw
+          jaw_position_index: -1
+        - pose_topic_key: psm2_eef
+          jaw_topic_key: psm2_jaw
+          jaw_position_index: -1
+      policy_type: "diffusion"
+      pretrained_policy_path: "masondx/diffusion_bimanual_tension_cut_rope_three_camera_state20"
+      action_outputs:
+        - name: "psm1_scissors"
+          action_slice: [0, 10]
+          robot_processor:
+            pose_topic: "/keyboard/psm1/pose"
+            pose_topic_type: "pose_stamped"
+            jaw_topic: "/keyboard/psm1/joint_state"
+            jaw_topic_type: "joint_state"
+            position_increment_scale: 1.0
+            max_position_increment_norm: 0.02
+            rotation_increment_scale: 1.0
+            jaw_action_scale: 1.0
+            max_jaw_increment_abs: 0.01
+            action_type: "xyz_6d"
+            base_to_cam_rotation: [-0.2588190451, 0.9659258263, 0.0,
+                                   -0.9659258263, -0.2588190451, 0.0,
+                                   0.0, 0.0, 1.0]
+
+        - name: "psm2_lnd"
+          action_slice: [10, 20]
+          robot_processor:
+            pose_topic: "/keyboard/psm2/pose"
+            pose_topic_type: "pose_stamped"
+            jaw_topic: "/keyboard/psm2/joint_state"
+            jaw_topic_type: "joint_state"
+            position_increment_scale: 0.5
+            max_position_increment_norm: 0.02
+            rotation_increment_scale: 0.5
+            # Start the new policy without the old model's 30x jaw workaround.
+            jaw_action_scale: 1.0
+            max_jaw_increment_abs: 0.01
+            action_type: "xyz_6d"
+            base_to_cam_rotation: [0.2588190451, 0.9659258263, 0.0,
+                                   -0.9659258263, 0.2588190451, 0.0,
+                                   0.0, 0.0, 1.0]

@@ -1,0 +1,18 @@
+# Ignore the diffuison policy folders
+# Ignore the demonstration files
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+outputs/
+data/
+models/
+wandb/
+**.egg-info
+imgui.ini
+DiT_training.sh
+.DS_Store
+# Ignore the unity project files in main branch

@@ -1,0 +1,133 @@
+# Unified configuration for recording, conversion, and inference of the
+# Unity dual-PSM rigid-bar pushing task.
+
+topics:
+  psm1_eef:
+    name: "/PSM1/command_end_tip_tf"
+    type: "geometry_msgs/PoseStamped"
+    recorder:
+      file: "psm1_eef_position.txt"
+
+  psm1_jaw:
+    name: "/PSM1/jaw/measured_js"
+    type: "sensor_msgs/JointState"
+    recorder:
+      file: "psm1_jaw_state.txt"
+
+  psm2_eef:
+    name: "/PSM2/command_end_tip_tf"
+    type: "geometry_msgs/PoseStamped"
+    recorder:
+      file: "psm2_eef_position.txt"
+
+  psm2_jaw:
+    name: "/PSM2/jaw/measured_js"
+    type: "sensor_msgs/JointState"
+    recorder:
+      file: "psm2_jaw_state.txt"
+
+  cam0:
+    name: "/rgb_publisher/cam0/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam0"
+    inference:
+      observation_name: "observation.image.cam0"
+
+# Unity already publishes both cameras at 240 x 360. The same preprocessing
+# must be retained for conversion, training, and inference.
+global_image_pre_processor:
+  rectangular_crop_hw: null
+  image_resize_hw: [240, 360]
+
+synchronizer:
+  slop_sec: 0.1
+
+recorder:
+  episode: 0
+  frequency: 20
+  data_writer:
+    saving_folder: "/home/medcvr/hongming/data/bimanual_long_block_raw"
+    timestamp_file: "timestamp.txt"
+
+# PSM1 and PSM2 each contribute xyz (3) + 6D rotation (6).
+# Concatenation order is PSM1 [0, 9), then PSM2 [9, 18).
+# Jaw feedback is recorded for diagnostics but is intentionally excluded from
+# the first pushing policy.
+data_conversion:
+  raw_dir: "/home/medcvr/hongming/data/bimanual_long_block_raw"
+  out_dir: "/home/medcvr/hongming/data/bimanual_long_block_top_lerobot"
+  image_type: mp4
+  state: zero
+  robot_env: Unity
+  repo_id: "masondx/bimanual_long_block_top"
+  push: true
+  fps: 20
+  cameras: "0"
+  task: "bimanual push rigid bar to target"
+  action_sources:
+    - eef_file: "psm1_eef_position.txt"
+      jaw_file: null
+      jaw: none
+      action: xyz_6d
+      transform_matrix: null
+      absolute_xyz: false
+      absolute_quat: false
+      absolute_jaw: false
+      base_to_cam_rot: null
+
+    - eef_file: "psm2_eef_position.txt"
+      jaw_file: null
+      jaw: none
+      action: xyz_6d
+      transform_matrix: null
+      absolute_xyz: false
+      absolute_quat: false
+      absolute_jaw: false
+      base_to_cam_rot: null
+
+# The policy was trained on 20 Hz per-frame relative actions. Translation is
+# converted from Unity-world ROS axes to each PSM base and norm-limited below.
+inference:
+  frequency_hz: 20
+  policy_inferences:
+    main:
+      device: "cuda"
+      observation_state_size: 3
+      zero_observation_state: true
+      policy_type: "diffusion"
+      pretrained_policy_path: "masondx/diffusion_bimanual_long_block_top"
+      action_outputs:
+        - name: "psm1"
+          action_slice: [0, 9]
+          robot_processor:
+            pose_topic: "/keyboard/psm1/pose"
+            pose_topic_type: "pose_stamped"
+            jaw_topic: ""
+            jaw_topic_type: "none"
+            position_increment_scale: 1.0
+            max_position_increment_norm: 0.02
+            rotation_increment_scale: 1.0
+            action_type: "xyz_6d"
+            # Dataset actions are Unity-world ROS xyz increments. PSM1's Unity
+            # root is yawed -105 deg, so rotate world ROS xyz into its local
+            # kinematic base frame before publishing.
+            base_to_cam_rotation: [-0.2588190451, 0.9659258263, 0.0,
+                                   -0.9659258263, -0.2588190451, 0.0,
+                                   0.0, 0.0, 1.0]
+
+        - name: "psm2"
+          action_slice: [9, 18]
+          robot_processor:
+            pose_topic: "/keyboard/psm2/pose"
+            pose_topic_type: "pose_stamped"
+            jaw_topic: ""
+            jaw_topic_type: "none"
+            position_increment_scale: 1.0
+            max_position_increment_norm: 0.02
+            rotation_increment_scale: 1.0
+            action_type: "xyz_6d"
+            # PSM2's Unity root is yawed -75 deg.
+            base_to_cam_rotation: [0.2588190451, 0.9659258263, 0.0,
+                                   -0.9659258263, 0.2588190451, 0.0,
+                                   0.0, 0.0, 1.0]

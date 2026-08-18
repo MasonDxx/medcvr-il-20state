@@ -1,0 +1,92 @@
+topics:
+  toolbox_joint_state:
+    name: "/current_joint_positions"
+    type: "sensor_msgs/JointState"
+    recorder:
+      file: "joint_state.txt"
+    inference:
+      observation_name: "observation.state"
+  joint_state:
+    name: "/medrct_franka/measured_js"
+    type: "sensor_msgs/JointState"
+    recorder:
+      file: "franka_state.txt"
+  # eef_pos:
+  #   name: "/medrct_franka/measured_tf"
+  #   type: "geometry_msgs/TransformStamped"
+  #   recorder:
+  #     file: "flange_position.txt" 
+  #   inference:
+  #     observation_name: "observation.state"
+  # cam0:
+  #   name: "/decklink/left/image_raw"
+  #   type: "sensor_msgs/Image"
+  #   recorder:
+  #     folder: "cam0"
+  #   inference:
+  #     observation_name: "observation.image.cam0"
+  cam0:
+    name: "/decklink/right/image_raw"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam1"
+    inference:
+      observation_name: "observation.image.cam0"
+  cam1:
+    name: "/camera/image_raw"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam2"
+    pre_processor: # For data converter, and inference
+      rectangular_crop_hw: [720, 960]
+      image_resize_hw: [240, 320]
+    inference:
+      observation_name: "observation.image.cam1"
+  cam2:
+    name: "/color/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam3"
+    inference:
+      observation_name: "observation.image.cam2"
+  # ndi_joint_state:
+  #   name: "/ndi/dynamic_joint_states"
+  #   type: "control_msgs/DynamicJointState"
+  #   recorder:
+  #     file: "ndi_joint_state.txt"
+
+global_image_pre_processor: 
+  rectangular_crop_hw: [1080, 1920]
+  image_resize_hw: [240, 320]
+  align: ["center", "center"]
+
+synchronizer: 
+  slop_sec: 0.1
+
+recorder:
+  episode: 0
+  frequency: 15
+  data_writer:
+    saving_folder: "/home/medcvr/radian/medcvr-il/data"
+    timestamp_file: "timestamp.txt"
+
+inference:
+  frequency_hz: 15
+  policy_inferences:
+    main:
+      device: "cuda"
+      observation_state_size: 3 # The toolbox roll, pitch, yaw, jaw
+      policy_type: "diffusion"
+      pretrained_policy_path: "cagedBirdy/DP_VIT_ndi_vel_123"
+      action_outputs:
+      - name: default
+        robot_processor:
+          pose_topic: "/keyboard/eedelta/pose"
+          pose_topic_type: "pose_stamped"
+          jaw_topic: "/toolbox/jaw/servo_jp"
+          jaw_topic_type: "joint_state"
+          position_increment_scale: 0.65
+          rotation_increment_scale: 1.0
+          action_type: "xyz_6d"
+          # actions_relative_to_start: false
+          # start_pose_topic: "/keyboard/command_tf"

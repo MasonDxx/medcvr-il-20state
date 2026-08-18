@@ -1,0 +1,4 @@
+[submodule "lerobot"]
+	path = lerobot
+	url = https://mcsgitlab.utm.utoronto.ca/medcvr/lerobot.git
+	branch = medcvr-custom

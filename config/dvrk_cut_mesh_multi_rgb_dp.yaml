@@ -1,0 +1,85 @@
+topics:
+  eef:
+    name: "/PSM2/measured_cp"
+    type: "geometry_msgs/PoseStamped"
+    recorder:
+      file: "eef_position.txt"
+    inference:
+      observation_name: "observation.state"
+  # js:
+  #   name: "/PSM2/measured_js"
+  #   type: "sensor_msgs/JointState"
+  #   recorder:
+  #     file: "joint_state.txt"
+  # jaw_fb:
+  #   name: "/PSM2/jaw/measured_js"
+  #   type: "sensor_msgs/JointState"
+  #   recorder:
+  #     file: "jaw_output.txt"
+  # jaw:
+  #   name: "/keyboard/joint_state"
+  #   type: "sensor_msgs/JointState"
+  #   recorder:
+  #     file: "jaw_state.txt"
+  # teleop:
+  #   name: "/keyboard/pose"
+  #   type: "geometry_msgs/PoseStamped"
+  #   recorder:
+  #     file: "teleop.txt"
+  cam0:
+    name: "/color_0/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam0"
+    inference:
+      observation_name: "observation.image.cam0"
+  cam1:
+    name: "/color_1/image"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam1"
+    inference:
+      observation_name: "observation.image.cam1"
+  cam2:
+    name: "/camera/image_raw"
+    type: "sensor_msgs/Image"
+    recorder:
+      folder: "cam2"
+    pre_processor:  # cam2 (wrist cam) has a narrower crop
+      rectangular_crop_hw: [720, 480]
+      image_resize_hw: [240, 320]
+    inference:
+      observation_name: "observation.image.cam2"
+
+global_image_pre_processor:
+  rectangular_crop_hw: [720, 540]
+  image_resize_hw: [240, 320]
+
+synchronizer:
+  slop_sec: 0.1
+
+recorder:
+  episode: 0
+  frequency: 15
+  data_writer:
+    saving_folder: "/home/medcvr/Amey/medcvr-il/data/mesh_cut_test"
+    timestamp_file: "timestamp.txt"
+
+inference:
+  frequency_hz: 5
+  policy_inferences:
+    main:
+      device: "cuda"
+      observation_state_size: 3
+      policy_type: "diffusion"
+      pretrained_policy_path: "MauoSama/mesh_cut_dvrk_v2"
+      action_outputs:
+      - name: default
+        action_slice: null
+        robot_processor:
+          pose_topic: "/keyboard/pose2"
+          pose_topic_type: "pose_stamped"
+          jaw_topic: "/keyboard/joint_state2"
+          jaw_topic_type: "joint_state"
+          position_increment_scale: 0.1
+          rotation_increment_scale: 1.0
